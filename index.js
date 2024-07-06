@@ -1,10 +1,9 @@
 const express = require('express');
 const app = express();
 const port = 3000;
+const db = require('./db');
 
 app.use(express.json());
-
-let users = [];
 
 app.get('/', (req, res) => {
     res.send('Welcome to the CRUD by Sergio Malyshev');
@@ -12,38 +11,74 @@ app.get('/', (req, res) => {
 
 // create
 app.post('/users', (req, res) => {
-    const user = req.body;
-    users.push(user);
-    res.status(201).send(user);
+    const { name } = req.body;
+    const query = `INSERT INTO users (name) VALUES (?)`;
+    db.run(query, [name], function(err) {
+        if (err) {
+            res.status(500).send(err.message);
+        } else {
+            res.status(201).send({ id: this.lastID, name });
+        }
+    });
 });
 
-//read
+//read all users
 app.get('/users', (req, res) => {
-    res.send(users);
+    const query = `SELECT * FROM users`;
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            res.status(500).send(err.message);
+        } else {
+            res.send(rows);
+        }
+    });
 });
 
+//read user by ID
 app.get('/users/:id', (req, res) => {
-    const user = users.find(u => u.id === parseInt(req.params.id));
-    if (!user) return res.status(404).send('User not found');
-    res.send(user);
+    const { id } = req.params;
+    const query = `SELECT * FROM users WHERE id = ?`;
+    db.get(query, [id], (err, row) => {
+        if (err) {
+            res.status(500).send(err.message);
+        } else if (!row) {
+            res.status(404).send('User not found');
+        } else {
+            res.send(row);
+        }
+    });
 });
+
 
 //update
 app.put('/users/:id', (req, res) => {
-    const user = users.find(u => u.id === parseInt(req.params.id));
-    if (!user) return res.status(404).send('User not found');
-
-    user.name = req.body.name;
-    res.send(user);
+    const { id } = req.params;
+    const { name } = req.body;
+    const query = `UPDATE users SET name = ? WHERE id = ?`;
+    db.run(query, [name, id], function(err) {
+        if (err) {
+            res.status(500).send(err.message);
+        } else if (this.changes === 0) {
+            res.status(404).send('User not found');
+        } else {
+            res.send({ id, name });
+        }
+    });
 });
 
 //delete
 app.delete('/users/:id', (req, res) => {
-    const userIndex = users.findIndex(u => u.id === parseInt(req.params.id));
-    if (userIndex === -1) return res.status(404).send('User not found');
-
-    const deletedUser = users.splice(userIndex, 1);
-    res.send(deletedUser);
+    const { id } = req.params;
+    const query = `DELETE FROM users WHERE id = ?`;
+    db.run(query, [id], function(err) {
+        if (err) {
+            res.status(500).send(err.message);
+        } else if (this.changes === 0) {
+            res.status(404).send('User not found');
+        } else {
+            res.send({ message: 'User deleted' });
+        }
+    });
 });
 
 app.listen(port, () => {
